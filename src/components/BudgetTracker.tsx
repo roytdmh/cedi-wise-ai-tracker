@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,14 +19,14 @@ interface Expense {
   id: string;
   category: string;
   amount: number;
-  description: string;
+  frequency: 'daily' | 'weekly' | 'bi-weekly' | 'monthly';
 }
 
 const BudgetTracker = () => {
   const { toast } = useToast();
   const [income, setIncome] = useState<Income>({ amount: 0, frequency: 'monthly', currency: 'USD' });
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [newExpense, setNewExpense] = useState({ category: '', amount: '', description: '' });
+  const [newExpense, setNewExpense] = useState({ category: '', amount: '', frequency: 'monthly' });
 
   const currencies = [
     { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -47,7 +46,12 @@ const BudgetTracker = () => {
     return income.amount * multipliers[income.frequency];
   };
 
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const getMonthlyExpenseAmount = (expense: Expense) => {
+    const multipliers = { daily: 30, weekly: 4.33, 'bi-weekly': 2.17, monthly: 1 };
+    return expense.amount * multipliers[expense.frequency];
+  };
+
+  const totalExpenses = expenses.reduce((sum, expense) => sum + getMonthlyExpenseAmount(expense), 0);
   const monthlyIncome = getMonthlyIncome();
   const surplus = monthlyIncome - totalExpenses;
   const savingsRate = monthlyIncome > 0 ? (surplus / monthlyIncome) * 100 : 0;
@@ -66,15 +70,15 @@ const BudgetTracker = () => {
       id: Date.now().toString(),
       category: newExpense.category,
       amount: parseFloat(newExpense.amount),
-      description: newExpense.description
+      frequency: newExpense.frequency as 'daily' | 'weekly' | 'bi-weekly' | 'monthly'
     };
 
     setExpenses([...expenses, expense]);
-    setNewExpense({ category: '', amount: '', description: '' });
+    setNewExpense({ category: '', amount: '', frequency: 'monthly' });
     
     toast({
       title: "Expense Added",
-      description: `Added ${getCurrencySymbol()}${expense.amount} for ${expense.category}`
+      description: `Added ${getCurrencySymbol()}${expense.amount} ${expense.frequency} for ${expense.category}`
     });
   };
 
@@ -263,14 +267,18 @@ const BudgetTracker = () => {
               />
             </div>
             <div>
-              <Label htmlFor="description">Description (Optional)</Label>
-              <Input
-                id="description"
-                placeholder="Description"
-                value={newExpense.description}
-                onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
-                className="mt-1"
-              />
+              <Label htmlFor="expense-frequency">Frequency</Label>
+              <Select value={newExpense.frequency} onValueChange={(value) => setNewExpense({...newExpense, frequency: value})}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-end">
               <Button onClick={addExpense} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
@@ -296,10 +304,8 @@ const BudgetTracker = () => {
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{expense.category}</Badge>
                       <span className="font-medium">{getCurrencySymbol()}{expense.amount.toFixed(2)}</span>
+                      <Badge variant="outline">{expense.frequency}</Badge>
                     </div>
-                    {expense.description && (
-                      <p className="text-sm text-gray-600 mt-1">{expense.description}</p>
-                    )}
                   </div>
                   <Button
                     variant="ghost"

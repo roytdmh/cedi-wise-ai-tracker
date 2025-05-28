@@ -19,7 +19,7 @@ const Index = () => {
             </div>
           </div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent mb-2">
-            AI Budget Tracker
+            CediWise
           </h1>
           <p className="text-gray-600 text-lg">
             Master your finances with intelligent budgeting and real-time market insights

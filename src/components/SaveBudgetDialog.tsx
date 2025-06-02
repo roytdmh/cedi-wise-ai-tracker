@@ -36,6 +36,18 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
 
     setSaving(true);
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to save budgets",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('budgets')
         .insert({
@@ -43,7 +55,8 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
           income_amount: income.amount,
           income_frequency: income.frequency,
           income_currency: income.currency,
-          expenses: expenses
+          expenses: JSON.parse(JSON.stringify(expenses)), // Ensure proper JSON serialization
+          user_id: user.id
         });
 
       if (error) throw error;

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,7 +76,7 @@ const BudgetHistory = ({ onRestoreBudget }: BudgetHistoryProps) => {
 
       if (error) throw error;
       
-      // Transform the data to match our interface
+      // Transform the data to match our interface and handle Json type properly
       const transformedData: SavedBudget[] = (data || []).map(budget => ({
         id: budget.id,
         name: budget.name,

@@ -60,18 +60,9 @@ const BudgetHistory = ({ onRestoreBudget }: BudgetHistoryProps) => {
 
   const fetchBudgets = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.log('No user found');
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('budgets')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

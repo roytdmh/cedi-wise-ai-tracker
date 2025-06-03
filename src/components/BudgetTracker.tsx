@@ -30,6 +30,7 @@ const BudgetTracker = () => {
   const [income, setIncome] = useState<Income>({ amount: 0, frequency: 'monthly', currency: 'USD' });
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [newExpense, setNewExpense] = useState({ category: '', amount: '', frequency: 'monthly' });
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add refresh trigger state
 
   const currencies = [
     { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -121,8 +122,8 @@ const BudgetTracker = () => {
   };
 
   const handleBudgetSaved = () => {
-    // This will trigger a refresh in the BudgetHistory component
-    // The component handles its own state refresh
+    // Trigger a refresh in the BudgetHistory component
+    setRefreshTrigger(prev => prev + 1);
   };
 
   return (
@@ -367,7 +368,10 @@ const BudgetTracker = () => {
       </TabsContent>
 
       <TabsContent value="history">
-        <BudgetHistory onRestoreBudget={handleRestoreBudget} />
+        <BudgetHistory 
+          onRestoreBudget={handleRestoreBudget} 
+          refreshTrigger={refreshTrigger}
+        />
       </TabsContent>
     </Tabs>
   );

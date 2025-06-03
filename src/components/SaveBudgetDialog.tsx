@@ -35,19 +35,34 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
     }
 
     setSaving(true);
+    console.log('Saving budget with data:', {
+      name: budgetName.trim(),
+      income_amount: income.amount,
+      income_frequency: income.frequency,
+      income_currency: income.currency,
+      expenses: expenses,
+      user_id: '00000000-0000-0000-0000-000000000000'
+    });
+
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('budgets')
         .insert({
           name: budgetName.trim(),
           income_amount: income.amount,
           income_frequency: income.frequency,
           income_currency: income.currency,
-          expenses: JSON.parse(JSON.stringify(expenses)), // Ensure proper JSON serialization
-          user_id: '00000000-0000-0000-0000-000000000000' // Use a default UUID for anonymous saves
-        });
+          expenses: expenses,
+          user_id: '00000000-0000-0000-0000-000000000000'
+        })
+        .select();
 
-      if (error) throw error;
+      console.log('Supabase insert response:', { data, error });
+
+      if (error) {
+        console.error('Supabase error details:', error);
+        throw error;
+      }
 
       toast({
         title: "Budget Saved",
@@ -61,7 +76,7 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
       console.error('Error saving budget:', error);
       toast({
         title: "Error",
-        description: "Failed to save budget. Please try again.",
+        description: `Failed to save budget: ${error.message || 'Unknown error'}`,
         variant: "destructive"
       });
     } finally {

@@ -41,7 +41,7 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
       income_frequency: income.frequency,
       income_currency: income.currency,
       expenses: expenses,
-      user_id: '00000000-0000-0000-0000-000000000000'
+      user_id: null
     });
 
     try {
@@ -53,7 +53,7 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
           income_frequency: income.frequency,
           income_currency: income.currency,
           expenses: expenses,
-          user_id: '00000000-0000-0000-0000-000000000000'
+          user_id: null
         })
         .select();
 

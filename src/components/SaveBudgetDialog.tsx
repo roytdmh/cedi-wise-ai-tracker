@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface SaveBudgetDialogProps {
   income: {
@@ -24,22 +23,12 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const saveBudget = async () => {
     if (!budgetName.trim()) {
       toast({
         title: "Missing Information",
         description: "Please enter a budget name",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to save budgets",
         variant: "destructive"
       });
       return;
@@ -52,7 +41,7 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
       income_frequency: income.frequency,
       income_currency: income.currency,
       expenses: expenses,
-      user_id: user.id
+      user_id: null
     });
 
     try {
@@ -64,7 +53,7 @@ const SaveBudgetDialog = ({ income, expenses, onBudgetSaved }: SaveBudgetDialogP
           income_frequency: income.frequency,
           income_currency: income.currency,
           expenses: expenses,
-          user_id: user.id
+          user_id: null
         })
         .select();
 

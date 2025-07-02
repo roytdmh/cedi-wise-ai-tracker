@@ -9,6 +9,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           created_at: string
@@ -45,15 +66,111 @@ export type Database = {
         }
         Relationships: []
       }
+      orders: {
+        Row: {
+          created_at: string | null
+          customer_name: string
+          id: string
+          items: Json
+          order_type: Database["public"]["Enums"]["order_type"]
+          payment_confirmed: boolean | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          rider_id: string | null
+          status: Database["public"]["Enums"]["order_status"] | null
+          total: number
+          updated_at: string | null
+          waiter_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_name: string
+          id?: string
+          items?: Json
+          order_type: Database["public"]["Enums"]["order_type"]
+          payment_confirmed?: boolean | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          rider_id?: string | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          total: number
+          updated_at?: string | null
+          waiter_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_name?: string
+          id?: string
+          items?: Json
+          order_type?: Database["public"]["Enums"]["order_type"]
+          payment_confirmed?: boolean | null
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          rider_id?: string | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          total?: number
+          updated_at?: string | null
+          waiter_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_waiter_id_fkey"
+            columns: ["waiter_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string | null
+          id: string
+          is_approved: boolean | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string | null
+          username: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+          username: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { user_id: string }
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
     }
     Enums: {
-      [_ in never]: never
+      order_status: "ordered" | "taken" | "completed"
+      order_type: "pickup" | "delivery"
+      payment_method: "cash" | "momo"
+      user_role: "admin" | "waiter" | "rider"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -168,6 +285,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      order_status: ["ordered", "taken", "completed"],
+      order_type: ["pickup", "delivery"],
+      payment_method: ["cash", "momo"],
+      user_role: ["admin", "waiter", "rider"],
+    },
   },
 } as const

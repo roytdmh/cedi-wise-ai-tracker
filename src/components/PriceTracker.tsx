@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, TrendingUp, TrendingDown, Search, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PriceData {
   id: string;
@@ -27,6 +28,8 @@ const PriceTracker = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [prices, setPrices] = useState<PriceData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [priceType, setPriceType] = useState<'retail' | 'wholesale'>('retail');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const countries = [
     { name: 'Ghana', currency: 'GHS', flag: '🇬🇭' },
@@ -66,20 +69,36 @@ const PriceTracker = () => {
   const fetchPrices = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
+      const { data, error } = await supabase.functions.invoke('fetch-price-data', {
+        body: { 
+          country: selectedCountry,
+          type: priceType
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setPrices(data.data);
+        setLastUpdated(new Date(data.lastUpdated));
+        
+        toast({
+          title: "Live Prices Updated",
+          description: `Fetched ${priceType} prices for ${selectedCountry} from live sources`
+        });
+      } else {
+        throw new Error(data.error || 'Failed to fetch prices');
+      }
+    } catch (error) {
+      console.error('Price data error:', error);
+      // Fallback to mock data
       const countryPrices = mockPricesData[selectedCountry as keyof typeof mockPricesData] || [];
       setPrices(countryPrices);
+      setLastUpdated(new Date());
       
       toast({
-        title: "Prices Updated",
-        description: `Fetched latest prices for ${selectedCountry}`
-      });
-    } catch (error) {
-      toast({
-        title: "Update Failed",
-        description: "Could not fetch latest price data",
+        title: "Using Cached Prices",
+        description: "Live data unavailable, showing cached prices",
         variant: "destructive"
       });
     } finally {
@@ -89,7 +108,7 @@ const PriceTracker = () => {
 
   useEffect(() => {
     fetchPrices();
-  }, [selectedCountry]);
+  }, [selectedCountry, priceType]);
 
   const filteredPrices = prices.filter(price => {
     const matchesCategory = selectedCategory === 'All' || price.category === selectedCategory;
@@ -123,7 +142,7 @@ const PriceTracker = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="country">Country</Label>
               <Select value={selectedCountry} onValueChange={setSelectedCountry}>
@@ -162,8 +181,20 @@ const PriceTracker = () => {
                 className="mt-1"
               />
             </div>
+            <div>
+              <Label htmlFor="price-type">Price Type</Label>
+              <Select value={priceType} onValueChange={(value: 'retail' | 'wholesale') => setPriceType(value)}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="retail">🏪 Retail Prices</SelectItem>
+                  <SelectItem value="wholesale">🏭 Wholesale Prices</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end">
-              <Button 
+              <Button
                 onClick={fetchPrices} 
                 disabled={loading}
                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
@@ -185,9 +216,19 @@ const PriceTracker = () => {
               <div>
                 <h3 className="text-xl font-bold text-blue-700">{selectedCountry}</h3>
                 <p className="text-gray-600">Currency: {getCountryInfo()?.currency}</p>
-                <p className="text-sm text-gray-500">
-                  Showing {filteredPrices.length} items
-                </p>
+                <div className="flex items-center gap-4">
+                  <p className="text-sm text-gray-500">
+                    Showing {filteredPrices.length} {priceType} items
+                  </p>
+                  {lastUpdated && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-xs text-green-600">
+                        Updated: {lastUpdated.toLocaleTimeString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>

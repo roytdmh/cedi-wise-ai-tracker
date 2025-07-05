@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { TrendingUp, TrendingDown, ArrowLeftRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ExchangeRate {
   currency: string;
@@ -47,14 +48,38 @@ const ExchangeRates = () => {
   const fetchExchangeRates = async () => {
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      const { data, error } = await supabase.functions.invoke('fetch-exchange-rates', {
+        body: { base: baseCurrency }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        const ratesData: ExchangeRate[] = data.rates.map((rate: any) => ({
+          currency: rate.currency,
+          rate: rate.rate,
+          change: rate.change,
+          flag: currencies.find(c => c.code === rate.currency)?.flag || '🏳️'
+        }));
+
+        setRates(ratesData);
+        setLastUpdated(new Date(data.lastUpdated));
+        
+        toast({
+          title: "Live Rates Updated",
+          description: "Exchange rates refreshed from live API"
+        });
+      } else {
+        throw new Error(data.error || 'Failed to fetch rates');
+      }
+    } catch (error) {
+      console.error('Exchange rates error:', error);
+      // Fallback to mock data
       const baseRates = mockRates[baseCurrency as keyof typeof mockRates] || {};
       const ratesData: ExchangeRate[] = Object.entries(baseRates).map(([currency, rate]) => ({
         currency,
         rate: rate as number,
-        change: (Math.random() - 0.5) * 2, // Random change for demo
+        change: (Math.random() - 0.5) * 2,
         flag: currencies.find(c => c.code === currency)?.flag || '🏳️'
       }));
 
@@ -62,13 +87,8 @@ const ExchangeRates = () => {
       setLastUpdated(new Date());
       
       toast({
-        title: "Rates Updated",
-        description: "Exchange rates have been refreshed successfully"
-      });
-    } catch (error) {
-      toast({
-        title: "Update Failed",
-        description: "Could not fetch latest exchange rates",
+        title: "Using Cached Rates",
+        description: "Live data unavailable, showing cached rates",
         variant: "destructive"
       });
     } finally {

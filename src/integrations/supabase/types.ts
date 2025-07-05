@@ -66,6 +66,115 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_sessions: {
+        Row: {
+          budget_id: string | null
+          context_data: Json | null
+          created_at: string
+          id: string
+          messages: Json
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          budget_id?: string | null
+          context_data?: Json | null
+          created_at?: string
+          id?: string
+          messages?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          budget_id?: string | null
+          context_data?: Json | null
+          created_at?: string
+          id?: string
+          messages?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_sessions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exchange_rate_history: {
+        Row: {
+          base_currency: string
+          change_percent: number | null
+          created_at: string
+          id: string
+          rate: number
+          target_currency: string
+          timestamp: string
+        }
+        Insert: {
+          base_currency: string
+          change_percent?: number | null
+          created_at?: string
+          id?: string
+          rate: number
+          target_currency: string
+          timestamp?: string
+        }
+        Update: {
+          base_currency?: string
+          change_percent?: number | null
+          created_at?: string
+          id?: string
+          rate?: number
+          target_currency?: string
+          timestamp?: string
+        }
+        Relationships: []
+      }
+      financial_health_scores: {
+        Row: {
+          budget_id: string | null
+          calculated_at: string
+          created_at: string
+          health_score: number
+          id: string
+          recommendations: string[] | null
+          score_factors: Json
+          user_id: string | null
+        }
+        Insert: {
+          budget_id?: string | null
+          calculated_at?: string
+          created_at?: string
+          health_score: number
+          id?: string
+          recommendations?: string[] | null
+          score_factors?: Json
+          user_id?: string | null
+        }
+        Update: {
+          budget_id?: string | null
+          calculated_at?: string
+          created_at?: string
+          health_score?: number
+          id?: string
+          recommendations?: string[] | null
+          score_factors?: Json
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_health_scores_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string | null
@@ -125,6 +234,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      price_history: {
+        Row: {
+          category: string
+          change_percent: number | null
+          country: string
+          created_at: string
+          currency: string
+          id: string
+          item_name: string
+          price: number
+          price_type: string
+          timestamp: string
+          unit: string
+        }
+        Insert: {
+          category: string
+          change_percent?: number | null
+          country: string
+          created_at?: string
+          currency: string
+          id?: string
+          item_name: string
+          price: number
+          price_type?: string
+          timestamp?: string
+          unit: string
+        }
+        Update: {
+          category?: string
+          change_percent?: number | null
+          country?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          item_name?: string
+          price?: number
+          price_type?: string
+          timestamp?: string
+          unit?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       users: {
         Row: {

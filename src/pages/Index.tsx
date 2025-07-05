@@ -5,9 +5,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BudgetTracker from '@/components/BudgetTracker';
 import ExchangeRates from '@/components/ExchangeRates';
 import PriceTracker from '@/components/PriceTracker';
-import { Wallet, TrendingUp, ShoppingCart } from 'lucide-react';
+import FinancialAdvisor from '@/components/FinancialAdvisor';
+import { Wallet, TrendingUp, ShoppingCart, Brain } from 'lucide-react';
 
 const Index = () => {
+  const [currentBudget, setCurrentBudget] = useState<any>(null);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-emerald-50">
       <div className="container mx-auto px-4 py-8">
@@ -29,7 +32,7 @@ const Index = () => {
         {/* Main Content */}
         <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0">
           <Tabs defaultValue="budget" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6 bg-gradient-to-r from-blue-100 to-teal-100 p-1 rounded-xl">
+            <TabsList className="grid w-full grid-cols-4 mb-6 bg-gradient-to-r from-blue-100 to-teal-100 p-1 rounded-xl">
               <TabsTrigger 
                 value="budget" 
                 className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-200"
@@ -51,6 +54,13 @@ const Index = () => {
                 <ShoppingCart className="h-4 w-4" />
                 Price Tracker
               </TabsTrigger>
+              <TabsTrigger 
+                value="advisor" 
+                className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-200"
+              >
+                <Brain className="h-4 w-4" />
+                AI Advisor
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="budget" className="mt-0">
@@ -63,6 +73,10 @@ const Index = () => {
 
             <TabsContent value="prices" className="mt-0">
               <PriceTracker />
+            </TabsContent>
+
+            <TabsContent value="advisor" className="mt-0">
+              <FinancialAdvisor budgetData={currentBudget} />
             </TabsContent>
           </Tabs>
         </Card>

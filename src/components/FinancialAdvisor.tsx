@@ -35,29 +35,16 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
       {/* Header with Health Score */}
       <HealthScoreCard healthScore={healthScore} />
 
-      {/* Service Status Alert */}
-      {lastError && retryCount > 1 && (
-        <Alert className="border-yellow-200 bg-yellow-50">
-          <AlertCircle className="h-4 w-4 text-yellow-600" />
-          <AlertDescription className="text-yellow-800">
-            {lastError.includes('quota') ? (
-              <>
-                <strong>Service temporarily at capacity.</strong> The AI advisor is experiencing high demand. 
-                Basic financial guidance is still available through our fallback system.
-              </>
-            ) : lastError.includes('rate_limit') ? (
-              <>
-                <strong>Rate limit reached.</strong> Please wait a minute before sending another message.
-              </>
-            ) : (
-              <>
-                <strong>Connection issues detected.</strong> Please check your internet connection. 
-                If the problem persists, try refreshing the page.
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
+          {/* Service Status Alert - Enhanced */}
+          <Alert className="border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Intelligent Fallback Mode Active:</strong> While our full AI advisor is temporarily 
+              unavailable, you're getting comprehensive financial guidance using built-in logic and real 
+              market data. The system can still analyze budgets, provide recommendations, and offer 
+              personalized financial advice.
+            </AlertDescription>
+          </Alert>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat Interface */}

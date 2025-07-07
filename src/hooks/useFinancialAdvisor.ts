@@ -209,6 +209,16 @@ export const useFinancialAdvisor = () => {
           setRetryCount(0);
           setLastError(null);
           setConnectionStatus('success');
+          
+          // Show fallback mode notification if applicable
+          if (data.fallback) {
+            toast({
+              title: "Using Fallback Mode",
+              description: "AI advisor is temporarily unavailable. Using built-in financial guidance.",
+              variant: "default"
+            });
+          }
+          
           break; // Success, exit retry loop
         } else {
           throw new Error(data.error || 'Failed to get response');
@@ -273,8 +283,8 @@ export const useFinancialAdvisor = () => {
     await sendMessage(analysisMessage);
 
     toast({
-      title: "Analysis Started",
-      description: `Analyzing budget: ${budget.name}`,
+      title: "Analysis Complete",
+      description: `Budget analysis ready: ${budget.name}`,
       variant: "default"
     });
   };

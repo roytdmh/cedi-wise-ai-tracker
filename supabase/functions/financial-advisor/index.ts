@@ -33,6 +33,54 @@ serve(async (req) => {
     });
     const { message, budgetData, sessionId } = requestBody;
 
+    // Handle connection test requests
+    if (message === '__TEST_CONNECTION__') {
+      console.log('Processing connection test request');
+      
+      // Quick health check - test Groq API key
+      try {
+        const testResponse = await fetch('https://api.groq.com/openai/v1/models', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          console.error('Groq API health check failed:', testResponse.status, errorText);
+          throw new Error(`Groq API health check failed: ${testResponse.status}`);
+        }
+        
+        console.log('Connection test successful - Groq API accessible');
+        return new Response(JSON.stringify({
+          success: true,
+          response: 'Connection test successful. AI advisor is working properly.',
+          healthCheck: {
+            groqApiAvailable: true,
+            timestamp: new Date().toISOString()
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (error) {
+        console.error('Connection test failed:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Connection test failed: ${error.message}`,
+          healthCheck: {
+            groqApiAvailable: false,
+            timestamp: new Date().toISOString(),
+            error: error.message
+          }
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // Get chat history if sessionId provided
     let chatHistory = [];
     if (sessionId) {

@@ -23,9 +23,14 @@ interface Expense {
   frequency: 'daily' | 'weekly' | 'bi-weekly' | 'monthly';
 }
 
-const BudgetTracker = () => {
-  const [income, setIncome] = useState<Income>({ amount: 0, frequency: 'monthly', currency: 'USD' });
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+interface BudgetTrackerProps {
+  income: Income;
+  expenses: Expense[];
+  onIncomeChange: (income: Income) => void;
+  onExpensesChange: (expenses: Expense[]) => void;
+}
+
+const BudgetTracker = ({ income, expenses, onIncomeChange, onExpensesChange }: BudgetTrackerProps) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const currencies = [
@@ -52,11 +57,11 @@ const BudgetTracker = () => {
   const savingsRate = monthlyIncome > 0 ? (surplus / monthlyIncome) * 100 : 0;
 
   const addExpense = (expense: Expense) => {
-    setExpenses([...expenses, expense]);
+    onExpensesChange([...expenses, expense]);
   };
 
   const removeExpense = (id: string) => {
-    setExpenses(expenses.filter(exp => exp.id !== id));
+    onExpensesChange(expenses.filter(exp => exp.id !== id));
   };
 
   const getCurrencySymbol = () => {
@@ -64,12 +69,12 @@ const BudgetTracker = () => {
   };
 
   const handleRestoreBudget = (savedBudget: any) => {
-    setIncome({
+    onIncomeChange({
       amount: savedBudget.income_amount,
       frequency: savedBudget.income_frequency,
       currency: savedBudget.income_currency
     });
-    setExpenses(savedBudget.expenses);
+    onExpensesChange(savedBudget.expenses);
   };
 
   const handleBudgetSaved = () => {
@@ -100,7 +105,7 @@ const BudgetTracker = () => {
         </div>
 
         {/* Income Setup */}
-        <IncomeSetup income={income} onIncomeChange={setIncome} />
+        <IncomeSetup income={income} onIncomeChange={onIncomeChange} />
 
         {/* Financial Overview */}
         <FinancialOverview 

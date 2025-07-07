@@ -8,8 +8,31 @@ import PriceTracker from '@/components/PriceTracker';
 import FinancialAdvisor from '@/components/FinancialAdvisor';
 import { Wallet, TrendingUp, ShoppingCart, Brain } from 'lucide-react';
 
+interface Income {
+  amount: number;
+  frequency: 'daily' | 'weekly' | 'bi-weekly' | 'monthly';
+  currency: string;
+}
+
+interface Expense {
+  id: string;
+  category: string;
+  amount: number;
+  frequency: 'daily' | 'weekly' | 'bi-weekly' | 'monthly';
+}
+
 const Index = () => {
-  const [currentBudget, setCurrentBudget] = useState<any>(null);
+  const [income, setIncome] = useState<Income>({ amount: 0, frequency: 'monthly', currency: 'USD' });
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+
+  // Create current budget data for AI advisor
+  const currentBudget = {
+    income,
+    expenses: expenses.map(expense => ({
+      category: expense.category,
+      amount: expense.amount * (expense.frequency === 'daily' ? 30 : expense.frequency === 'weekly' ? 4.33 : expense.frequency === 'bi-weekly' ? 2.17 : 1)
+    }))
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-emerald-50">
@@ -64,7 +87,12 @@ const Index = () => {
             </TabsList>
 
             <TabsContent value="budget" className="mt-0">
-              <BudgetTracker />
+              <BudgetTracker 
+                income={income}
+                expenses={expenses}
+                onIncomeChange={setIncome}
+                onExpensesChange={setExpenses}
+              />
             </TabsContent>
 
             <TabsContent value="exchange" className="mt-0">

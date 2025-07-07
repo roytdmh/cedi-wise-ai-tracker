@@ -30,6 +30,8 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [retryCount, setRetryCount] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'failed'>('unknown');
 
   // Initialize chat session
   useEffect(() => {
@@ -38,6 +40,7 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
 
   const initializeChatSession = async () => {
     try {
+      console.log('Initializing chat session...');
       const { data, error } = await supabase
         .from('chat_sessions')
         .insert({
@@ -47,10 +50,83 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
         .select('id')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Chat session initialization error:', error);
+        throw error;
+      }
+      console.log('Chat session initialized successfully:', data.id);
       setSessionId(data.id);
     } catch (error) {
       console.error('Error initializing chat session:', error);
+    }
+  };
+
+  const testConnection = async () => {
+    setIsTestingConnection(true);
+    setConnectionStatus('unknown');
+    
+    try {
+      console.log('Testing connection to financial advisor...');
+      const startTime = Date.now();
+      
+      const { data, error } = await supabase.functions.invoke('financial-advisor', {
+        body: {
+          message: '__TEST_CONNECTION__',
+          sessionId: null
+        }
+      });
+      
+      const responseTime = Date.now() - startTime;
+      console.log(`Connection test completed in ${responseTime}ms`, { data, error });
+
+      if (error) {
+        console.error('Connection test failed:', {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        setConnectionStatus('failed');
+        throw error;
+      }
+
+      if (data?.success) {
+        console.log('Connection test successful');
+        setConnectionStatus('success');
+        toast({
+          title: "Connection Test Successful",
+          description: `AI advisor is working properly (${responseTime}ms response time)`,
+          variant: "default"
+        });
+      } else {
+        console.error('Connection test returned unsuccessful response:', data);
+        setConnectionStatus('failed');
+        throw new Error(data?.error || 'Unknown connection test failure');
+      }
+    } catch (error) {
+      console.error('Connection test error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      setConnectionStatus('failed');
+      
+      let errorMessage = 'Connection test failed';
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = 'Network error - check your internet connection';
+      } else if (error.message.includes('quota')) {
+        errorMessage = 'AI service quota exceeded - try again later';
+      } else if (error.message.includes('rate_limit')) {
+        errorMessage = 'Rate limit reached - wait before testing again';
+      }
+      
+      toast({
+        title: "Connection Test Failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestingConnection(false);
     }
   };
 
@@ -69,89 +145,140 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
     };
     setMessages(prev => [...prev, newUserMessage]);
 
-    try {
-      const { data, error } = await supabase.functions.invoke('financial-advisor', {
-        body: {
+    const maxRetries = 3;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+      try {
+        console.log(`Sending message attempt ${attempt + 1}/${maxRetries}:`, {
           message: userMessage,
-          budgetData,
-          sessionId
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        const aiMessage: Message = {
-          role: 'assistant',
-          content: data.response,
+          sessionId,
+          hasbudgetData: !!budgetData,
           timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, aiMessage]);
+        });
 
-        // Update health score and recommendations if provided
-        if (data.healthScore !== null) {
-          setHealthScore(data.healthScore);
-        }
-        if (data.recommendations) {
-          setRecommendations(data.recommendations);
+        const startTime = Date.now();
+        const { data, error } = await supabase.functions.invoke('financial-advisor', {
+          body: {
+            message: userMessage,
+            budgetData,
+            sessionId
+          }
+        });
+        const responseTime = Date.now() - startTime;
+
+        console.log(`Response received in ${responseTime}ms:`, {
+          success: data?.success,
+          hasResponse: !!data?.response,
+          fallback: data?.fallback,
+          errorType: data?.errorType,
+          error: error?.message
+        });
+
+        if (error) {
+          console.error('Supabase function invocation error:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
         }
 
-        // Show notification if this is a fallback response
-        if (data.fallback) {
-          let fallbackMessage = '';
-          switch (data.errorType) {
-            case 'quota_exceeded':
-              fallbackMessage = 'AI service is temporarily at capacity. Showing basic financial guidance.';
-              break;
-            case 'rate_limit':
-              fallbackMessage = 'Please wait a moment before sending another message.';
-              break;
-            default:
-              fallbackMessage = 'AI advisor temporarily unavailable. Showing general recommendations.';
+        if (data.success) {
+          const aiMessage: Message = {
+            role: 'assistant',
+            content: data.response,
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, aiMessage]);
+
+          // Update health score and recommendations if provided
+          if (data.healthScore !== null) {
+            setHealthScore(data.healthScore);
+          }
+          if (data.recommendations) {
+            setRecommendations(data.recommendations);
+          }
+
+          // Show notification if this is a fallback response
+          if (data.fallback) {
+            let fallbackMessage = '';
+            switch (data.errorType) {
+              case 'quota_exceeded':
+                fallbackMessage = 'AI service is temporarily at capacity. Showing basic financial guidance.';
+                break;
+              case 'rate_limit':
+                fallbackMessage = 'Please wait a moment before sending another message.';
+                break;
+              default:
+                fallbackMessage = 'AI advisor temporarily unavailable. Showing general recommendations.';
+            }
+            
+            toast({
+              title: "Using Fallback Mode",
+              description: fallbackMessage,
+              variant: "default"
+            });
           }
           
-          toast({
-            title: "Using Fallback Mode",
-            description: fallbackMessage,
-            variant: "default"
-          });
+          // Reset retry count and error state on success
+          setRetryCount(0);
+          setLastError(null);
+          setConnectionStatus('success');
+          break; // Success, exit retry loop
+        } else {
+          throw new Error(data.error || 'Failed to get response');
+        }
+      } catch (error) {
+        console.error(`Message attempt ${attempt + 1} failed:`, {
+          error: error.message,
+          attempt: attempt + 1,
+          maxRetries,
+          timestamp: new Date().toISOString()
+        });
+        
+        attempt++;
+        setLastError(error.message);
+        setConnectionStatus('failed');
+        
+        // If this is not the last attempt, wait before retrying
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
         
-        // Reset retry count and error state on success
-        setRetryCount(0);
-        setLastError(null);
-      } else {
-        throw new Error(data.error || 'Failed to get response');
+        // All retries failed, show error to user
+        let errorTitle = "Error";
+        let errorDescription = "Failed to get response from financial advisor";
+        
+        if (error.message.includes('quota') || error.message.includes('insufficient_quota')) {
+          errorTitle = "Service Temporarily Unavailable";
+          errorDescription = "AI service is at capacity. Please try again in a few minutes.";
+        } else if (error.message.includes('rate_limit')) {
+          errorTitle = "Rate Limited";
+          errorDescription = "Please wait a moment before sending another message.";
+        } else if (error.message.includes('network') || error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+          errorTitle = "Connection Error";
+          errorDescription = "Please check your internet connection and try again. Use the Test Connection button to diagnose issues.";
+        } else if (error.message.includes('timeout')) {
+          errorTitle = "Request Timeout";
+          errorDescription = "The request took too long. Please try again with a shorter message.";
+        }
+        
+        toast({
+          title: errorTitle,
+          description: errorDescription,
+          variant: "destructive"
+        });
+        
+        setRetryCount(prev => prev + 1);
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setLastError(error.message);
-      
-      // Show different error messages based on error type
-      let errorTitle = "Error";
-      let errorDescription = "Failed to get response from financial advisor";
-      
-      if (error.message.includes('quota') || error.message.includes('insufficient_quota')) {
-        errorTitle = "Service Temporarily Unavailable";
-        errorDescription = "AI service is at capacity. Please try again in a few minutes.";
-      } else if (error.message.includes('rate_limit')) {
-        errorTitle = "Rate Limited";
-        errorDescription = "Please wait a moment before sending another message.";
-      } else if (error.message.includes('network') || error.message.includes('fetch')) {
-        errorTitle = "Connection Error";
-        errorDescription = "Please check your internet connection and try again.";
-      }
-      
-      toast({
-        title: errorTitle,
-        description: errorDescription,
-        variant: "destructive"
-      });
-      
-      setRetryCount(prev => prev + 1);
-    } finally {
-      setLoading(false);
     }
+    
+    setLoading(false);
   };
 
   const suggestedQuestions = [
@@ -292,6 +419,67 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
 
         {/* Sidebar with Suggestions and Recommendations */}
         <div className="space-y-6">
+          {/* Connection Status */}
+          <Card className="shadow-lg border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-gray-700">
+                {connectionStatus === 'success' ? (
+                  <Wifi className="h-5 w-5 text-green-600" />
+                ) : connectionStatus === 'failed' ? (
+                  <WifiOff className="h-5 w-5 text-red-600" />
+                ) : (
+                  <Wifi className="h-5 w-5 text-gray-400" />
+                )}
+                System Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">AI Advisor:</span>
+                <div className="flex items-center gap-2">
+                  {connectionStatus === 'success' && (
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                      Online
+                    </Badge>
+                  )}
+                  {connectionStatus === 'failed' && (
+                    <Badge variant="destructive">
+                      Offline
+                    </Badge>
+                  )}
+                  {connectionStatus === 'unknown' && (
+                    <Badge variant="outline">
+                      Unknown
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <Button
+                onClick={testConnection}
+                disabled={isTestingConnection}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                {isTestingConnection ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                    Testing Connection...
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="h-4 w-4 mr-2" />
+                    Test Connection
+                  </>
+                )}
+              </Button>
+              {retryCount > 1 && (
+                <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                  Connection issues detected. Try the test above to diagnose the problem.
+                </div>
+              )}
+            </CardContent>
+          </Card>
           {/* Suggested Questions */}
           <Card className="shadow-lg">
             <CardHeader>

@@ -16,14 +16,22 @@ serve(async (req) => {
   try {
     const groqApiKey = Deno.env.get('GROQ_API_KEY');
     if (!groqApiKey) {
+      console.error('GROQ_API_KEY environment variable not found');
       throw new Error('Groq API key not configured');
     }
+    console.log('Groq API key found, length:', groqApiKey.length);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const { message, budgetData, sessionId } = await req.json();
+    const requestBody = await req.json();
+    console.log('Request body parsed successfully:', { 
+      hasMessage: !!requestBody.message, 
+      hasBudgetData: !!requestBody.budgetData, 
+      hasSessionId: !!requestBody.sessionId 
+    });
+    const { message, budgetData, sessionId } = requestBody;
 
     // Get chat history if sessionId provided
     let chatHistory = [];
@@ -90,6 +98,7 @@ Always provide specific, actionable advice with concrete examples and consider l
     ];
 
     console.log('Sending request to Groq with', messages.length, 'messages');
+    console.log('Using model: llama-3.1-70b-versatile');
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -105,9 +114,16 @@ Always provide specific, actionable advice with concrete examples and consider l
       }),
     });
 
+    console.log('Groq API response status:', response.status);
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Groq API error details:', errorText);
+      console.error('Groq API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: errorText
+      });
       throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
 

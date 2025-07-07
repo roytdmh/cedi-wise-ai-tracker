@@ -160,9 +160,56 @@ Always provide specific, actionable advice with concrete examples and consider l
 
   } catch (error) {
     console.error('Error in financial-advisor function:', error);
+    
+    // Provide fallback response based on error type
+    let fallbackResponse = null;
+    let errorType = 'unknown';
+    
+    if (error.message.includes('insufficient_quota') || error.message.includes('quota')) {
+      errorType = 'quota_exceeded';
+      fallbackResponse = generateFallbackAdvice(budgetData, 'quota');
+    } else if (error.message.includes('rate_limit')) {
+      errorType = 'rate_limit';
+      fallbackResponse = generateFallbackAdvice(budgetData, 'rate_limit');
+    } else if (error.message.includes('OpenAI')) {
+      errorType = 'api_error';
+      fallbackResponse = generateFallbackAdvice(budgetData, 'api_error');
+    }
+    
+    if (fallbackResponse) {
+      // Update chat session with fallback response
+      const newMessage = { role: 'user', content: message, timestamp: new Date().toISOString() };
+      const fallbackMessage = { role: 'assistant', content: fallbackResponse, timestamp: new Date().toISOString() };
+      const updatedHistory = [...chatHistory, newMessage, fallbackMessage];
+
+      if (sessionId) {
+        await supabase
+          .from('chat_sessions')
+          .update({ 
+            messages: updatedHistory,
+            context_data: { budgetData, healthScore, scoreFactors, error: errorType }
+          })
+          .eq('id', sessionId);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        response: fallbackResponse,
+        healthScore,
+        scoreFactors,
+        recommendations,
+        sessionId,
+        fallback: true,
+        errorType
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      errorType 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -237,4 +284,60 @@ function generateRecommendations(budgetData: any, healthScore: number): string[]
   recommendations.push("Set specific savings goals for the next 6 months");
   
   return recommendations;
+}
+
+function generateFallbackAdvice(budgetData: any, errorType: string): string {
+  const income = budgetData?.income?.amount || 0;
+  const expenses = budgetData?.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0;
+  const currency = budgetData?.income?.currency || 'GHS';
+  const remaining = income - expenses;
+  
+  let fallbackMessage = '';
+  
+  if (errorType === 'quota') {
+    fallbackMessage = '⚠️ AI service temporarily unavailable due to high demand. Here\'s some basic financial guidance:\n\n';
+  } else if (errorType === 'rate_limit') {
+    fallbackMessage = '⚠️ Please wait a moment before asking again. Here\'s some immediate advice:\n\n';
+  } else {
+    fallbackMessage = '⚠️ AI advisor temporarily unavailable. Here are some general recommendations:\n\n';
+  }
+  
+  if (budgetData) {
+    fallbackMessage += `📊 **Current Budget Analysis:**\n`;
+    fallbackMessage += `• Monthly Income: ${currency} ${income.toLocaleString()}\n`;
+    fallbackMessage += `• Total Expenses: ${currency} ${expenses.toLocaleString()}\n`;
+    fallbackMessage += `• Remaining: ${currency} ${remaining.toLocaleString()}\n\n`;
+    
+    if (remaining < 0) {
+      fallbackMessage += `🚨 **Urgent:** You're spending ${currency} ${Math.abs(remaining).toLocaleString()} more than you earn!\n\n`;
+      fallbackMessage += `**Immediate Actions:**\n`;
+      fallbackMessage += `• Review and cut non-essential expenses immediately\n`;
+      fallbackMessage += `• Look for additional income sources\n`;
+      fallbackMessage += `• Avoid taking on new debt\n\n`;
+    } else if (remaining < income * 0.1) {
+      fallbackMessage += `⚠️ **Low Savings:** You're only saving ${Math.round((remaining/income)*100)}% of your income.\n\n`;
+      fallbackMessage += `**Recommendations:**\n`;
+      fallbackMessage += `• Aim to save at least 10-20% of your income\n`;
+      fallbackMessage += `• Build an emergency fund of 3-6 months expenses\n`;
+      fallbackMessage += `• Review your expense categories for optimization\n\n`;
+    } else {
+      fallbackMessage += `✅ **Good News:** You're saving ${Math.round((remaining/income)*100)}% of your income!\n\n`;
+      fallbackMessage += `**Keep Building:**\n`;
+      fallbackMessage += `• Continue building your emergency fund\n`;
+      fallbackMessage += `• Consider investment opportunities\n`;
+      fallbackMessage += `• Plan for long-term financial goals\n\n`;
+    }
+  }
+  
+  fallbackMessage += `💡 **General Financial Tips for West Africa:**\n`;
+  fallbackMessage += `• Diversify income sources when possible\n`;
+  fallbackMessage += `• Keep some savings in stable foreign currency (USD/EUR)\n`;
+  fallbackMessage += `• Take advantage of mobile money savings features\n`;
+  fallbackMessage += `• Consider local investment opportunities like agriculture or real estate\n\n`;
+  fallbackMessage += `• Track market prices for essential goods to optimize shopping\n`;
+  fallbackMessage += `• Build relationships with local financial institutions\n\n`;
+  
+  fallbackMessage += `🔄 Please try again in a few minutes for personalized AI advice.`;
+  
+  return fallbackMessage;
 }

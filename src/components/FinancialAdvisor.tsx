@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Brain, Send, MessageCircle, TrendingUp, AlertCircle, Lightbulb, BarChart3 } from 'lucide-react';
+import { Brain, Send, MessageCircle, TrendingUp, AlertCircle, Lightbulb, BarChart3, Wifi, WifiOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -27,6 +28,8 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   // Initialize chat session
   useEffect(() => {
@@ -92,16 +95,60 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
         if (data.recommendations) {
           setRecommendations(data.recommendations);
         }
+
+        // Show notification if this is a fallback response
+        if (data.fallback) {
+          let fallbackMessage = '';
+          switch (data.errorType) {
+            case 'quota_exceeded':
+              fallbackMessage = 'AI service is temporarily at capacity. Showing basic financial guidance.';
+              break;
+            case 'rate_limit':
+              fallbackMessage = 'Please wait a moment before sending another message.';
+              break;
+            default:
+              fallbackMessage = 'AI advisor temporarily unavailable. Showing general recommendations.';
+          }
+          
+          toast({
+            title: "Using Fallback Mode",
+            description: fallbackMessage,
+            variant: "default"
+          });
+        }
+        
+        // Reset retry count and error state on success
+        setRetryCount(0);
+        setLastError(null);
       } else {
         throw new Error(data.error || 'Failed to get response');
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      setLastError(error.message);
+      
+      // Show different error messages based on error type
+      let errorTitle = "Error";
+      let errorDescription = "Failed to get response from financial advisor";
+      
+      if (error.message.includes('quota') || error.message.includes('insufficient_quota')) {
+        errorTitle = "Service Temporarily Unavailable";
+        errorDescription = "AI service is at capacity. Please try again in a few minutes.";
+      } else if (error.message.includes('rate_limit')) {
+        errorTitle = "Rate Limited";
+        errorDescription = "Please wait a moment before sending another message.";
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorTitle = "Connection Error";
+        errorDescription = "Please check your internet connection and try again.";
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to get response from financial advisor",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive"
       });
+      
+      setRetryCount(prev => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -148,6 +195,30 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
           )}
         </CardHeader>
       </Card>
+
+      {/* Service Status Alert */}
+      {lastError && retryCount > 1 && (
+        <Alert className="border-yellow-200 bg-yellow-50">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="text-yellow-800">
+            {lastError.includes('quota') ? (
+              <>
+                <strong>Service temporarily at capacity.</strong> The AI advisor is experiencing high demand. 
+                Basic financial guidance is still available through our fallback system.
+              </>
+            ) : lastError.includes('rate_limit') ? (
+              <>
+                <strong>Rate limit reached.</strong> Please wait a minute before sending another message.
+              </>
+            ) : (
+              <>
+                <strong>Connection issues detected.</strong> Please check your internet connection. 
+                If the problem persists, try refreshing the page.
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat Interface */}

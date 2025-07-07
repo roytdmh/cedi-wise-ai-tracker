@@ -14,9 +14,9 @@ serve(async (req) => {
   }
 
   try {
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    if (!groqApiKey) {
+      throw new Error('Groq API key not configured');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -82,23 +82,23 @@ Always provide specific, actionable advice with concrete examples and consider l
 - Budget Categories: ${budgetData.expenses?.map((e: any) => `${e.category}: ${e.amount}`).join(', ')}`;
     }
 
-    // Prepare messages for OpenAI
+    // Prepare messages for Groq
     const messages = [
       { role: 'system', content: systemPrompt },
       ...chatHistory.slice(-10), // Keep last 10 messages for context
       { role: 'user', content: message + contextMessage }
     ];
 
-    console.log('Sending request to OpenAI with', messages.length, 'messages');
+    console.log('Sending request to Groq with', messages.length, 'messages');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'llama-3.1-70b-versatile',
         messages: messages,
         temperature: 0.7,
         max_tokens: 1500,
@@ -107,15 +107,15 @@ Always provide specific, actionable advice with concrete examples and consider l
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error details:', errorText);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      console.error('Groq API error details:', errorText);
+      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('Invalid OpenAI response structure:', data);
-      throw new Error('Invalid response from OpenAI API');
+      console.error('Invalid Groq response structure:', data);
+      throw new Error('Invalid response from Groq API');
     }
     
     const aiResponse = data.choices[0].message.content;
@@ -171,7 +171,7 @@ Always provide specific, actionable advice with concrete examples and consider l
     } else if (error.message.includes('rate_limit')) {
       errorType = 'rate_limit';
       fallbackResponse = generateFallbackAdvice(budgetData, 'rate_limit');
-    } else if (error.message.includes('OpenAI')) {
+    } else if (error.message.includes('Groq')) {
       errorType = 'api_error';
       fallbackResponse = generateFallbackAdvice(budgetData, 'api_error');
     }

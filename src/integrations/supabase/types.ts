@@ -14,7 +14,164 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      budgets: {
+        Row: {
+          created_at: string
+          expenses: Json
+          id: string
+          income_amount: number
+          income_currency: string
+          income_frequency: string
+          name: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          expenses?: Json
+          id?: string
+          income_amount: number
+          income_currency?: string
+          income_frequency: string
+          name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          expenses?: Json
+          id?: string
+          income_amount?: number
+          income_currency?: string
+          income_frequency?: string
+          name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      chat_sessions: {
+        Row: {
+          context_data: Json
+          created_at: string
+          id: string
+          messages: Json
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          context_data?: Json
+          created_at?: string
+          id?: string
+          messages?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          context_data?: Json
+          created_at?: string
+          id?: string
+          messages?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      exchange_rates: {
+        Row: {
+          base_currency: string
+          created_at: string
+          id: string
+          rate: number
+          source: string | null
+          target_currency: string
+        }
+        Insert: {
+          base_currency: string
+          created_at?: string
+          id?: string
+          rate: number
+          source?: string | null
+          target_currency: string
+        }
+        Update: {
+          base_currency?: string
+          created_at?: string
+          id?: string
+          rate?: number
+          source?: string | null
+          target_currency?: string
+        }
+        Relationships: []
+      }
+      financial_health_scores: {
+        Row: {
+          budget_id: string | null
+          created_at: string
+          health_score: number
+          id: string
+          recommendations: Json
+          score_factors: Json
+        }
+        Insert: {
+          budget_id?: string | null
+          created_at?: string
+          health_score: number
+          id?: string
+          recommendations?: Json
+          score_factors?: Json
+        }
+        Update: {
+          budget_id?: string | null
+          created_at?: string
+          health_score?: number
+          id?: string
+          recommendations?: Json
+          score_factors?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_health_scores_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_data: {
+        Row: {
+          category: string | null
+          created_at: string
+          currency: string
+          id: string
+          item_name: string
+          location: string | null
+          price: number
+          source: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          item_name: string
+          location?: string | null
+          price: number
+          source?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          item_name?: string
+          location?: string | null
+          price?: number
+          source?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

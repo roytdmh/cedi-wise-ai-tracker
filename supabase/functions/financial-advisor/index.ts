@@ -122,6 +122,30 @@ serve(async (req) => {
       }
     }
 
+    // Fetch local data for intelligent analysis
+    console.log('Fetching local data for AI context...');
+    
+    // Get recent price history (last 30 days)
+    const { data: priceData } = await supabase
+      .from('price_history')
+      .select('*')
+      .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order('timestamp', { ascending: false })
+      .limit(100);
+
+    // Get recent exchange rates (last 7 days)
+    const { data: exchangeData } = await supabase
+      .from('exchange_rate_history')
+      .select('*')
+      .gte('timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .order('timestamp', { ascending: false })
+      .limit(50);
+
+    console.log('Local data fetched:', {
+      priceDataCount: priceData?.length || 0,
+      exchangeDataCount: exchangeData?.length || 0
+    });
+
     // Calculate financial health score if budget data provided
     let healthScore = null;
     let scoreFactors = {};
@@ -134,23 +158,76 @@ serve(async (req) => {
     }
 
     // Prepare context for AI
-    const systemPrompt = `You are CediWise Financial Advisor, an expert financial consultant specializing in West African markets (Ghana, Nigeria) and international finance. Your role is to:
+    const systemPrompt = `You are CediWise Financial Advisor, an expert financial consultant specializing in West African markets (Ghana, Nigeria) and international finance. 
 
-1. Analyze budgets and spending patterns
-2. Provide culturally relevant financial advice for West African contexts
-3. Consider local economic conditions, exchange rates, and market prices
-4. Offer practical, actionable financial guidance
-5. Calculate and explain financial health scores
+CORE CAPABILITIES:
+- Advanced budget analysis using real financial data
+- Real-time market price intelligence and cost optimization 
+- Exchange rate analysis and currency strategy
+- Data-driven financial health assessment
+- Investment and savings strategies for West African contexts
 
-Key expertise areas:
-- Budget optimization and expense management
-- Investment strategies suitable for West African markets
-- Currency exchange and international money transfers
-- Local market price analysis and cost-saving strategies
-- Emergency fund planning and savings strategies
-- Debt management and financial planning
+DATA SOURCES AVAILABLE:
+- Current user budget data with income and expense breakdown
+- Historical price data for essential goods and commodities
+- Real-time exchange rate trends and analysis
+- Financial health scoring with quantified factors
 
-Always provide specific, actionable advice with concrete examples and consider local economic realities.`;
+ANALYSIS APPROACH:
+1. Use actual data to provide specific, quantified recommendations
+2. Compare user expenses against market prices for optimization opportunities
+3. Analyze exchange rate trends for currency decisions
+4. Calculate precise financial ratios and health metrics
+5. Provide concrete action steps with specific amounts and timelines
+
+RESPONSE STYLE:
+- Always reference specific data points in your analysis
+- Provide quantified recommendations (exact amounts, percentages, timelines)
+- Use comparative analysis against market trends
+- Include risk assessments based on data patterns
+- Focus on actionable, measurable steps
+
+Remember: Base all advice on the actual data provided - never give generic responses.`;
+
+    // Analyze local data for intelligent insights
+    let marketInsights = '';
+    let exchangeInsights = '';
+    
+    if (priceData && priceData.length > 0) {
+      // Analyze price trends
+      const recentPrices = priceData.slice(0, 20);
+      const categories = [...new Set(recentPrices.map(item => item.category))];
+      const priceAnalysis = categories.map(cat => {
+        const catItems = recentPrices.filter(item => item.category === cat);
+        const avgPrice = catItems.reduce((sum, item) => sum + item.price, 0) / catItems.length;
+        const recentChanges = catItems.filter(item => item.change_percent !== null);
+        const avgChange = recentChanges.length > 0 ? 
+          recentChanges.reduce((sum, item) => sum + item.change_percent, 0) / recentChanges.length : 0;
+        return { category: cat, avgPrice: avgPrice.toFixed(2), avgChange: avgChange.toFixed(1), count: catItems.length };
+      });
+      
+      marketInsights = `\n\nMARKET PRICE INTELLIGENCE (Last 30 Days):
+${priceAnalysis.map(cat => 
+`• ${cat.category}: Avg price trend ${cat.avgChange > 0 ? '+' : ''}${cat.avgChange}% (${cat.count} items tracked)`
+).join('\n')}`;
+    }
+    
+    if (exchangeData && exchangeData.length > 0) {
+      // Analyze exchange rate trends
+      const currencies = [...new Set(exchangeData.map(rate => `${rate.base_currency}/${rate.target_currency}`))];
+      const rateAnalysis = currencies.slice(0, 5).map(pair => {
+        const rates = exchangeData.filter(rate => `${rate.base_currency}/${rate.target_currency}` === pair);
+        const latestRate = rates[0]?.rate || 0;
+        const avgChange = rates.filter(r => r.change_percent !== null)
+          .reduce((sum, r) => sum + r.change_percent, 0) / rates.length || 0;
+        return { pair, latestRate: latestRate.toFixed(4), avgChange: avgChange.toFixed(2) };
+      });
+      
+      exchangeInsights = `\n\nEXCHANGE RATE INTELLIGENCE (Last 7 Days):
+${rateAnalysis.map(rate => 
+`• ${rate.pair}: ${rate.latestRate} (${rate.avgChange > 0 ? '+' : ''}${rate.avgChange}% trend)`
+).join('\n')}`;
+    }
 
     let contextMessage = '';
     if (budgetData) {
@@ -162,7 +239,11 @@ Always provide specific, actionable advice with concrete examples and consider l
 - Total Monthly Expenses: ${budgetData.income?.currency} ${totalExpenses}
 - Remaining Budget: ${budgetData.income?.currency} ${monthlyIncome - totalExpenses}
 - Financial Health Score: ${healthScore}/100
-- Budget Categories: ${budgetData.expenses?.map((e: any) => `${e.category}: ${e.amount}`).join(', ')}`;
+- Score Factors: Income Utilization ${scoreFactors.income_utilization}%, Savings Rate ${scoreFactors.savings_rate}%
+- Budget Categories: ${budgetData.expenses?.map((e: any) => `${e.category}: ${budgetData.income?.currency} ${e.amount}`).join(', ')}${marketInsights}${exchangeInsights}`;
+    } else {
+      // Include market data even without budget data
+      contextMessage = marketInsights + exchangeInsights;
     }
 
     // Prepare messages for Groq
@@ -260,66 +341,9 @@ Always provide specific, actionable advice with concrete examples and consider l
   } catch (error) {
     console.error('Error in financial-advisor function:', error);
     
-    // Provide fallback response based on error type
-    let fallbackResponse = null;
-    let errorType = 'unknown';
-    let chatHistory = []; // Ensure chatHistory is available for fallback
-
-    // Try to get the message and other variables safely
-    const safeMessage = requestBody?.message || 'Unknown message';
-    const safeBudgetData = requestBody?.budgetData || null;
-    const safeSessionId = requestBody?.sessionId || null;
-    
-    if (error.message.includes('insufficient_quota') || error.message.includes('quota')) {
-      errorType = 'quota_exceeded';
-      fallbackResponse = generateFallbackAdvice(safeBudgetData, 'quota');
-    } else if (error.message.includes('rate_limit')) {
-      errorType = 'rate_limit';
-      fallbackResponse = generateFallbackAdvice(safeBudgetData, 'rate_limit');
-    } else if (error.message.includes('Groq')) {
-      errorType = 'api_error';
-      fallbackResponse = generateFallbackAdvice(safeBudgetData, 'api_error');
-    }
-    
-    if (fallbackResponse) {
-      // Try to update chat session with fallback response safely
-      try {
-        const newMessage = { role: 'user', content: safeMessage, timestamp: new Date().toISOString() };
-        const fallbackMessage = { role: 'assistant', content: fallbackResponse, timestamp: new Date().toISOString() };
-        const updatedHistory = [...chatHistory, newMessage, fallbackMessage];
-
-        if (safeSessionId) {
-          await supabase
-            .from('chat_sessions')
-            .update({ 
-              messages: updatedHistory,
-              context_data: { budgetData: safeBudgetData, error: errorType }
-            })
-            .eq('id', safeSessionId);
-        }
-      } catch (sessionError) {
-        console.error('Error updating session in fallback:', sessionError);
-        // Continue with fallback response even if session update fails
-      }
-
-      return new Response(JSON.stringify({
-        success: true,
-        response: fallbackResponse,
-        healthScore: null,
-        scoreFactors: {},
-        recommendations: [],
-        sessionId: safeSessionId,
-        fallback: true,
-        errorType
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error.message,
-      errorType 
+      error: `AI advisor error: ${error.message}. Please try again or check your connection.`
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -394,60 +418,4 @@ function generateRecommendations(budgetData: any, healthScore: number): string[]
   recommendations.push("Set specific savings goals for the next 6 months");
   
   return recommendations;
-}
-
-function generateFallbackAdvice(budgetData: any, errorType: string): string {
-  const income = budgetData?.income?.amount || 0;
-  const expenses = budgetData?.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0;
-  const currency = budgetData?.income?.currency || 'GHS';
-  const remaining = income - expenses;
-  
-  let fallbackMessage = '';
-  
-  if (errorType === 'quota') {
-    fallbackMessage = '⚠️ AI service temporarily unavailable due to high demand. Here\'s some basic financial guidance:\n\n';
-  } else if (errorType === 'rate_limit') {
-    fallbackMessage = '⚠️ Please wait a moment before asking again. Here\'s some immediate advice:\n\n';
-  } else {
-    fallbackMessage = '⚠️ AI advisor temporarily unavailable. Here are some general recommendations:\n\n';
-  }
-  
-  if (budgetData) {
-    fallbackMessage += `📊 **Current Budget Analysis:**\n`;
-    fallbackMessage += `• Monthly Income: ${currency} ${income.toLocaleString()}\n`;
-    fallbackMessage += `• Total Expenses: ${currency} ${expenses.toLocaleString()}\n`;
-    fallbackMessage += `• Remaining: ${currency} ${remaining.toLocaleString()}\n\n`;
-    
-    if (remaining < 0) {
-      fallbackMessage += `🚨 **Urgent:** You're spending ${currency} ${Math.abs(remaining).toLocaleString()} more than you earn!\n\n`;
-      fallbackMessage += `**Immediate Actions:**\n`;
-      fallbackMessage += `• Review and cut non-essential expenses immediately\n`;
-      fallbackMessage += `• Look for additional income sources\n`;
-      fallbackMessage += `• Avoid taking on new debt\n\n`;
-    } else if (remaining < income * 0.1) {
-      fallbackMessage += `⚠️ **Low Savings:** You're only saving ${Math.round((remaining/income)*100)}% of your income.\n\n`;
-      fallbackMessage += `**Recommendations:**\n`;
-      fallbackMessage += `• Aim to save at least 10-20% of your income\n`;
-      fallbackMessage += `• Build an emergency fund of 3-6 months expenses\n`;
-      fallbackMessage += `• Review your expense categories for optimization\n\n`;
-    } else {
-      fallbackMessage += `✅ **Good News:** You're saving ${Math.round((remaining/income)*100)}% of your income!\n\n`;
-      fallbackMessage += `**Keep Building:**\n`;
-      fallbackMessage += `• Continue building your emergency fund\n`;
-      fallbackMessage += `• Consider investment opportunities\n`;
-      fallbackMessage += `• Plan for long-term financial goals\n\n`;
-    }
-  }
-  
-  fallbackMessage += `💡 **General Financial Tips for West Africa:**\n`;
-  fallbackMessage += `• Diversify income sources when possible\n`;
-  fallbackMessage += `• Keep some savings in stable foreign currency (USD/EUR)\n`;
-  fallbackMessage += `• Take advantage of mobile money savings features\n`;
-  fallbackMessage += `• Consider local investment opportunities like agriculture or real estate\n\n`;
-  fallbackMessage += `• Track market prices for essential goods to optimize shopping\n`;
-  fallbackMessage += `• Build relationships with local financial institutions\n\n`;
-  
-  fallbackMessage += `🔄 Please try again in a few minutes for personalized AI advice.`;
-  
-  return fallbackMessage;
-}
+});

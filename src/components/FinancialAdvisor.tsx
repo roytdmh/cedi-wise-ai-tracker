@@ -200,27 +200,6 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
           if (data.recommendations) {
             setRecommendations(data.recommendations);
           }
-
-          // Show notification if this is a fallback response
-          if (data.fallback) {
-            let fallbackMessage = '';
-            switch (data.errorType) {
-              case 'quota_exceeded':
-                fallbackMessage = 'AI service is temporarily at capacity. Showing basic financial guidance.';
-                break;
-              case 'rate_limit':
-                fallbackMessage = 'Please wait a moment before sending another message.';
-                break;
-              default:
-                fallbackMessage = 'AI advisor temporarily unavailable. Showing general recommendations.';
-            }
-            
-            toast({
-              title: "Using Fallback Mode",
-              description: fallbackMessage,
-              variant: "default"
-            });
-          }
           
           // Reset retry count and error state on success
           setRetryCount(0);

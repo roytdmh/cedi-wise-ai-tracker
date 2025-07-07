@@ -35,6 +35,17 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
       {/* Header with Health Score */}
       <HealthScoreCard healthScore={healthScore} />
 
+          {/* Service Status Alert - Enhanced */}
+          <Alert className="border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Intelligent Fallback Mode Active:</strong> While our full AI advisor is temporarily 
+              unavailable, you're getting comprehensive financial guidance using built-in logic and real 
+              market data. The system can still analyze budgets, provide recommendations, and offer 
+              personalized financial advice.
+            </AlertDescription>
+          </Alert>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat Interface */}
         <FinancialAdvisorChat 

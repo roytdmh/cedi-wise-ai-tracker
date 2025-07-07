@@ -10,24 +10,67 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('=== Financial Advisor Function Started ===');
+  console.log('Request method:', req.method);
+  console.log('Request URL:', req.url);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response(null, { headers: corsHeaders });
   }
 
   let requestBody: any = {};
   
   try {
+    // Environment validation with detailed logging
+    console.log('Checking environment variables...');
     const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    
+    console.log('Environment check:', {
+      hasGroqApiKey: !!groqApiKey,
+      groqApiKeyLength: groqApiKey?.length || 0,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseAnonKey: !!supabaseAnonKey,
+      supabaseUrl: supabaseUrl || 'NOT_SET'
+    });
+    
     if (!groqApiKey) {
-      console.error('GROQ_API_KEY environment variable not found');
-      throw new Error('Groq API key not configured');
+      console.error('❌ GROQ_API_KEY environment variable not found');
+      throw new Error('Groq API key not configured - please add GROQ_API_KEY to Edge Function secrets');
     }
-    console.log('Groq API key found, length:', groqApiKey.length);
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('❌ Supabase environment variables missing:', { supabaseUrl: !!supabaseUrl, supabaseAnonKey: !!supabaseAnonKey });
+      throw new Error('Supabase configuration missing');
+    }
+    
+    console.log('✅ Environment variables validated successfully');
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    // Initialize Supabase client
+    console.log('Initializing Supabase client...');
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
+    // Test database connectivity
+    try {
+      console.log('Testing database connectivity...');
+      const { data: testData, error: testError } = await supabase
+        .from('chat_sessions')
+        .select('id')
+        .limit(1);
+      
+      if (testError) {
+        console.error('❌ Database connectivity test failed:', testError);
+        throw new Error(`Database connection failed: ${testError.message}`);
+      }
+      
+      console.log('✅ Database connectivity test passed');
+    } catch (dbError) {
+      console.error('❌ Database access error:', dbError);
+      throw new Error(`Database access error: ${dbError.message}`);
+    }
 
     // Parse request body with error handling
     try {
@@ -125,17 +168,45 @@ serve(async (req) => {
     }
 
     // Fetch local data for intelligent analysis
-    const { priceData, exchangeData } = await fetchLocalData(supabase);
+    console.log('Fetching local data for analysis...');
+    let priceData = null;
+    let exchangeData = null;
+    
+    try {
+      const localData = await fetchLocalData(supabase);
+      priceData = localData.priceData;
+      exchangeData = localData.exchangeData;
+      console.log('✅ Local data fetched successfully:', {
+        priceDataCount: priceData?.length || 0,
+        exchangeDataCount: exchangeData?.length || 0
+      });
+    } catch (dataError) {
+      console.error('❌ Failed to fetch local data:', dataError);
+      // Continue without local data - don't fail the entire request
+      console.log('Continuing without local market data...');
+    }
 
     // Calculate financial health score if budget data provided
+    console.log('Calculating financial health metrics...');
     let healthScore = null;
     let scoreFactors = {};
     let recommendations = [];
 
     if (budgetData) {
-      healthScore = calculateFinancialHealthScore(budgetData);
-      scoreFactors = getScoreFactors(budgetData);
-      recommendations = generateRecommendations(budgetData, healthScore);
+      try {
+        console.log('Budget data provided, calculating health score...');
+        healthScore = calculateFinancialHealthScore(budgetData);
+        scoreFactors = getScoreFactors(budgetData);
+        recommendations = generateRecommendations(budgetData, healthScore);
+        console.log('✅ Health calculations completed:', {
+          healthScore,
+          recommendationsCount: recommendations.length
+        });
+      } catch (healthError) {
+        console.error('❌ Failed to calculate health metrics:', healthError);
+        // Continue without health metrics - don't fail the entire request
+        console.log('Continuing without health score calculations...');
+      }
     }
 
     // Prepare context for AI
@@ -283,13 +354,46 @@ Remember: Base all advice on the actual data provided - never give generic respo
     });
 
   } catch (error) {
-    console.error('Error in financial-advisor function:', error);
+    console.error('=== CRITICAL ERROR in financial-advisor function ===');
+    console.error('Error type:', error.constructor.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Request body that caused error:', JSON.stringify(requestBody, null, 2));
+    
+    // Provide specific error messages based on error type
+    let userErrorMessage = 'AI advisor error: Unknown error occurred';
+    let statusCode = 500;
+    
+    if (error.message?.includes('API key')) {
+      userErrorMessage = 'AI service configuration error. Please check API key settings.';
+      statusCode = 503;
+    } else if (error.message?.includes('quota') || error.message?.includes('rate')) {
+      userErrorMessage = 'AI service temporarily overloaded. Please try again in a few minutes.';
+      statusCode = 429;
+    } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+      userErrorMessage = 'Network connectivity issue. Please check your connection and try again.';
+      statusCode = 503;
+    } else if (error.message?.includes('Database')) {
+      userErrorMessage = 'Database connectivity issue. Please try again.';
+      statusCode = 503;
+    } else if (error.message?.includes('JSON')) {
+      userErrorMessage = 'Invalid request format. Please check your input.';
+      statusCode = 400;
+    }
     
     return new Response(JSON.stringify({ 
       success: false, 
-      error: `AI advisor error: ${error.message}. Please try again or check your connection.`
+      error: userErrorMessage,
+      fallback: true,
+      timestamp: new Date().toISOString(),
+      // Include basic fallback guidance
+      fallbackGuidance: `While our AI advisor is temporarily unavailable, you can still get financial guidance by asking specific questions about:
+      - Budget analysis: "analyze my budget"
+      - Savings strategies: "help me save money"  
+      - Investment advice: "investment guidance"
+      - Health score improvement: "improve my financial health"`
     }), {
-      status: 500,
+      status: statusCode,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

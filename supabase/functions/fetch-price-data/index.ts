@@ -17,9 +17,10 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const { searchParams } = new URL(req.url);
-    const country = searchParams.get('country') || 'Ghana';
-    const priceType = searchParams.get('type') || 'retail'; // retail or wholesale
+    // Get parameters from request body
+    const requestBody = await req.json();
+    const country = requestBody.country || 'Ghana';
+    const priceType = requestBody.type || 'retail'; // retail or wholesale
 
     console.log(`Fetching ${priceType} price data for: ${country}`);
 
@@ -85,26 +86,23 @@ serve(async (req) => {
     });
 
     // Store in database
-    const historicalData = processedData.map(item => ({
+    const priceData = processedData.map(item => ({
       item_name: item.item,
       category: item.category,
-      country: item.country,
       price: item.price,
       currency: item.currency,
-      price_type: item.price_type,
-      unit: item.unit,
-      change_percent: item.change,
-      timestamp: new Date().toISOString()
+      location: item.country,
+      source: 'internal-data'
     }));
 
     const { error: insertError } = await supabase
-      .from('price_history')
-      .insert(historicalData);
+      .from('price_data')
+      .insert(priceData);
 
     if (insertError) {
       console.error('Error inserting price history:', insertError);
     } else {
-      console.log(`Inserted ${historicalData.length} price records for ${country}`);
+      console.log(`Inserted ${priceData.length} price records for ${country}`);
     }
 
     return new Response(JSON.stringify({

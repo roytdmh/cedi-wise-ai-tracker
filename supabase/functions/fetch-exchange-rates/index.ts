@@ -17,9 +17,9 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Get base currency from request (default to USD)
-    const { searchParams } = new URL(req.url);
-    const baseCurrency = searchParams.get('base') || 'USD';
+    // Get base currency from request body (default to USD)
+    const requestBody = await req.json();
+    const baseCurrency = requestBody.base || 'USD';
 
     // Using exchangerate-api.com (free tier: 1500 requests/month)
     const apiUrl = `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`;
@@ -33,35 +33,31 @@ serve(async (req) => {
 
     const data = await response.json();
     
-    // Store historical data in database
-    const historicalData = [];
+    // Store data in database
+    const exchangeData = [];
     const targetCurrencies = ['USD', 'GHS', 'EUR', 'GBP', 'NGN', 'CAD', 'JPY', 'AUD'];
     
     for (const currency of targetCurrencies) {
       if (currency !== baseCurrency && data.rates[currency]) {
-        // Calculate random change for demo (in real app, compare with previous rate)
-        const changePercent = (Math.random() - 0.5) * 4; // -2% to +2%
-        
-        historicalData.push({
+        exchangeData.push({
           base_currency: baseCurrency,
           target_currency: currency,
           rate: data.rates[currency],
-          change_percent: changePercent,
-          timestamp: new Date().toISOString()
+          source: 'exchangerate-api.com'
         });
       }
     }
 
     // Insert into database
-    if (historicalData.length > 0) {
+    if (exchangeData.length > 0) {
       const { error: insertError } = await supabase
-        .from('exchange_rate_history')
-        .insert(historicalData);
+        .from('exchange_rates')
+        .insert(exchangeData);
       
       if (insertError) {
         console.error('Error inserting exchange rate history:', insertError);
       } else {
-        console.log(`Inserted ${historicalData.length} exchange rate records`);
+        console.log(`Inserted ${exchangeData.length} exchange rate records`);
       }
     }
 

@@ -174,6 +174,12 @@ Always provide specific, actionable advice with concrete examples and consider l
 
     console.log('Sending request to Groq with', messages.length, 'messages');
     console.log('Using model: llama-3.1-70b-versatile');
+    console.log('Request details:', {
+      messageCount: messages.length,
+      model: 'llama-3.1-70b-versatile',
+      temperature: 0.7,
+      maxTokens: 1500
+    });
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -186,10 +192,12 @@ Always provide specific, actionable advice with concrete examples and consider l
         messages: messages,
         temperature: 0.7,
         max_tokens: 1500,
+        stream: false
       }),
     });
 
     console.log('Groq API response status:', response.status);
+    console.log('Groq API response headers:', Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();

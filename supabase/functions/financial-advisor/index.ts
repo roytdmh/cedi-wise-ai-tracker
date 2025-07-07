@@ -1,6 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { calculateFinancialHealthScore, getScoreFactors, generateRecommendations } from './health-score.ts';
+import { fetchLocalData, analyzeMarketData, buildContextMessage } from './data-analysis.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -123,28 +125,7 @@ serve(async (req) => {
     }
 
     // Fetch local data for intelligent analysis
-    console.log('Fetching local data for AI context...');
-    
-    // Get recent price history (last 30 days)
-    const { data: priceData } = await supabase
-      .from('price_history')
-      .select('*')
-      .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order('timestamp', { ascending: false })
-      .limit(100);
-
-    // Get recent exchange rates (last 7 days)
-    const { data: exchangeData } = await supabase
-      .from('exchange_rate_history')
-      .select('*')
-      .gte('timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-      .order('timestamp', { ascending: false })
-      .limit(50);
-
-    console.log('Local data fetched:', {
-      priceDataCount: priceData?.length || 0,
-      exchangeDataCount: exchangeData?.length || 0
-    });
+    const { priceData, exchangeData } = await fetchLocalData(supabase);
 
     // Calculate financial health score if budget data provided
     let healthScore = null;
@@ -190,61 +171,10 @@ RESPONSE STYLE:
 Remember: Base all advice on the actual data provided - never give generic responses.`;
 
     // Analyze local data for intelligent insights
-    let marketInsights = '';
-    let exchangeInsights = '';
+    const { marketInsights, exchangeInsights } = analyzeMarketData(priceData, exchangeData);
     
-    if (priceData && priceData.length > 0) {
-      // Analyze price trends
-      const recentPrices = priceData.slice(0, 20);
-      const categories = [...new Set(recentPrices.map(item => item.category))];
-      const priceAnalysis = categories.map(cat => {
-        const catItems = recentPrices.filter(item => item.category === cat);
-        const avgPrice = catItems.reduce((sum, item) => sum + item.price, 0) / catItems.length;
-        const recentChanges = catItems.filter(item => item.change_percent !== null);
-        const avgChange = recentChanges.length > 0 ? 
-          recentChanges.reduce((sum, item) => sum + item.change_percent, 0) / recentChanges.length : 0;
-        return { category: cat, avgPrice: avgPrice.toFixed(2), avgChange: avgChange.toFixed(1), count: catItems.length };
-      });
-      
-      marketInsights = `\n\nMARKET PRICE INTELLIGENCE (Last 30 Days):
-${priceAnalysis.map(cat => 
-`• ${cat.category}: Avg price trend ${cat.avgChange > 0 ? '+' : ''}${cat.avgChange}% (${cat.count} items tracked)`
-).join('\n')}`;
-    }
-    
-    if (exchangeData && exchangeData.length > 0) {
-      // Analyze exchange rate trends
-      const currencies = [...new Set(exchangeData.map(rate => `${rate.base_currency}/${rate.target_currency}`))];
-      const rateAnalysis = currencies.slice(0, 5).map(pair => {
-        const rates = exchangeData.filter(rate => `${rate.base_currency}/${rate.target_currency}` === pair);
-        const latestRate = rates[0]?.rate || 0;
-        const avgChange = rates.filter(r => r.change_percent !== null)
-          .reduce((sum, r) => sum + r.change_percent, 0) / rates.length || 0;
-        return { pair, latestRate: latestRate.toFixed(4), avgChange: avgChange.toFixed(2) };
-      });
-      
-      exchangeInsights = `\n\nEXCHANGE RATE INTELLIGENCE (Last 7 Days):
-${rateAnalysis.map(rate => 
-`• ${rate.pair}: ${rate.latestRate} (${rate.avgChange > 0 ? '+' : ''}${rate.avgChange}% trend)`
-).join('\n')}`;
-    }
-
-    let contextMessage = '';
-    if (budgetData) {
-      const totalExpenses = budgetData.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0;
-      const monthlyIncome = budgetData.income?.amount || 0;
-      
-      contextMessage = `\n\nCURRENT FINANCIAL CONTEXT:
-- Monthly Income: ${budgetData.income?.currency} ${monthlyIncome}
-- Total Monthly Expenses: ${budgetData.income?.currency} ${totalExpenses}
-- Remaining Budget: ${budgetData.income?.currency} ${monthlyIncome - totalExpenses}
-- Financial Health Score: ${healthScore}/100
-- Score Factors: Income Utilization ${scoreFactors.income_utilization}%, Savings Rate ${scoreFactors.savings_rate}%
-- Budget Categories: ${budgetData.expenses?.map((e: any) => `${e.category}: ${budgetData.income?.currency} ${e.amount}`).join(', ')}${marketInsights}${exchangeInsights}`;
-    } else {
-      // Include market data even without budget data
-      contextMessage = marketInsights + exchangeInsights;
-    }
+    // Build context message
+    const contextMessage = buildContextMessage(budgetData, healthScore, scoreFactors, marketInsights, exchangeInsights);
 
     // Prepare messages for Groq
     const messages = [
@@ -349,73 +279,4 @@ ${rateAnalysis.map(rate =>
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
-
-function calculateFinancialHealthScore(budgetData: any): number {
-  const income = budgetData.income?.amount || 0;
-  const expenses = budgetData.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0;
-  
-  if (income === 0) return 0;
-  
-  const savingsRate = ((income - expenses) / income) * 100;
-  const expenseRatio = (expenses / income) * 100;
-  
-  let score = 100;
-  
-  // Deduct points based on expense ratio
-  if (expenseRatio > 90) score -= 40;
-  else if (expenseRatio > 80) score -= 30;
-  else if (expenseRatio > 70) score -= 20;
-  else if (expenseRatio > 60) score -= 10;
-  
-  // Add points for healthy savings rate
-  if (savingsRate >= 20) score += 10;
-  else if (savingsRate >= 10) score += 5;
-  
-  // Check for emergency fund (assume 10% should be emergency savings)
-  const emergencyFund = budgetData.expenses?.find((e: any) => e.category?.toLowerCase().includes('emergency') || e.category?.toLowerCase().includes('savings'));
-  if (!emergencyFund) score -= 15;
-  
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function getScoreFactors(budgetData: any): any {
-  const income = budgetData.income?.amount || 0;
-  const expenses = budgetData.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0;
-  
-  return {
-    income_utilization: Math.round((expenses / income) * 100),
-    savings_rate: Math.round(((income - expenses) / income) * 100),
-    expense_categories: budgetData.expenses?.length || 0,
-    emergency_fund_present: budgetData.expenses?.some((e: any) => 
-      e.category?.toLowerCase().includes('emergency') || 
-      e.category?.toLowerCase().includes('savings')
-    ) || false
-  };
-}
-
-function generateRecommendations(budgetData: any, healthScore: number): string[] {
-  const recommendations = [];
-  const income = budgetData.income?.amount || 0;
-  const expenses = budgetData.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0;
-  const savingsRate = ((income - expenses) / income) * 100;
-  
-  if (savingsRate < 10) {
-    recommendations.push("Build an emergency fund covering 3-6 months of expenses");
-    recommendations.push("Look for ways to reduce non-essential expenses");
-  }
-  
-  if (expenses / income > 0.8) {
-    recommendations.push("Your expenses are high relative to income - consider budget optimization");
-  }
-  
-  if (healthScore < 50) {
-    recommendations.push("Focus on creating a sustainable budget plan");
-    recommendations.push("Consider additional income sources or expense reduction");
-  }
-  
-  recommendations.push("Review and categorize all expenses monthly");
-  recommendations.push("Set specific savings goals for the next 6 months");
-  
-  return recommendations;
 });

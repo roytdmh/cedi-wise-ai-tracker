@@ -30,9 +30,10 @@ const formSchema = z.object({
 
 interface NewsletterSignupDialogProps {
   children: React.ReactNode;
+  onSuccess?: () => void;
 }
 
-export function NewsletterSignupDialog({ children }: NewsletterSignupDialogProps) {
+export function NewsletterSignupDialog({ children, onSuccess }: NewsletterSignupDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -73,6 +74,7 @@ export function NewsletterSignupDialog({ children }: NewsletterSignupDialogProps
         });
         form.reset();
         setOpen(false);
+        onSuccess?.();
       }
     } catch (error) {
       console.error("Error subscribing to newsletter:", error);

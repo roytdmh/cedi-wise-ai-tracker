@@ -1,7 +1,8 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAccess } from '@/contexts/AccessContext';
 import BudgetTracker from '@/components/BudgetTracker';
 import ExchangeRates from '@/components/ExchangeRates';
 import PriceTracker from '@/components/PriceTracker';
@@ -24,6 +25,16 @@ interface Expense {
 const Index = () => {
   const [income, setIncome] = useState<Income>({ amount: 0, frequency: 'monthly', currency: 'USD' });
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const { setAccessLevel, hasFullAccess, hasDemoAccess } = useAccess();
+
+  // Handle access level from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const accessParam = params.get('access');
+    if (accessParam === 'demo' || accessParam === 'full') {
+      setAccessLevel(accessParam);
+    }
+  }, [setAccessLevel]);
 
   // Create current budget data for AI advisor
   const currentBudget = {
@@ -37,6 +48,27 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-teal-50 to-emerald-50">
       <div className="container mx-auto px-4 py-8">
+        {/* Demo Mode Banner */}
+        {hasDemoAccess && !hasFullAccess && (
+          <div className="mb-6 p-4 bg-amber-100 border border-amber-300 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-amber-600" />
+                <span className="text-amber-800 font-medium">Demo Mode</span>
+              </div>
+              <div className="text-sm text-amber-700">
+                Some features are limited. 
+                <button 
+                  onClick={() => window.location.href = '/'} 
+                  className="ml-2 underline hover:no-underline"
+                >
+                  Get full access
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Brain, Send, MessageCircle, TrendingUp, AlertCircle, Lightbulb, BarChart3, Wifi, WifiOff } from 'lucide-react';
+import { Brain, Send, MessageCircle, TrendingUp, AlertCircle, Lightbulb, BarChart3, Wifi, WifiOff, Folder } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -32,11 +32,118 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
   const [lastError, setLastError] = useState<string | null>(null);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'failed'>('unknown');
+  const [savedBudgets, setSavedBudgets] = useState<any[]>([]);
+  const [selectedBudget, setSelectedBudget] = useState<any>(null);
+  const [loadingBudgets, setLoadingBudgets] = useState(false);
 
   // Initialize chat session
   useEffect(() => {
     initializeChatSession();
+    fetchSavedBudgets();
   }, []);
+
+  const fetchSavedBudgets = async () => {
+    setLoadingBudgets(true);
+    try {
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching saved budgets:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch saved budgets",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setSavedBudgets(data || []);
+    } catch (error) {
+      console.error('Error in fetchSavedBudgets:', error);
+    } finally {
+      setLoadingBudgets(false);
+    }
+  };
+
+  const analyzeBudget = async (budget: any) => {
+    setSelectedBudget(budget);
+    
+    // Clear existing messages and start fresh analysis
+    setMessages([]);
+    setHealthScore(null);
+    setRecommendations([]);
+    
+    // Transform budget data to match expected format
+    const budgetDataForAnalysis = {
+      income: {
+        amount: budget.income_amount,
+        frequency: budget.income_frequency,
+        currency: budget.income_currency
+      },
+      expenses: budget.expenses
+    };
+
+    // Send initial analysis message
+    const analysisMessage = `Please provide a comprehensive financial analysis for the budget "${budget.name}". Include health score assessment, detailed expense breakdown, savings potential, and specific recommendations for improvement.`;
+    
+    setInputMessage('');
+    setLoading(true);
+
+    // Add analysis request message to chat
+    const newUserMessage: Message = {
+      role: 'user',
+      content: analysisMessage,
+      timestamp: new Date().toISOString()
+    };
+    setMessages([newUserMessage]);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('financial-advisor', {
+        body: {
+          message: analysisMessage,
+          budgetData: budgetDataForAnalysis,
+          sessionId
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        const aiMessage: Message = {
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date().toISOString()
+        };
+        setMessages([newUserMessage, aiMessage]);
+
+        // Update health score and recommendations if provided
+        if (data.healthScore !== null) {
+          setHealthScore(data.healthScore);
+        }
+        if (data.recommendations) {
+          setRecommendations(data.recommendations);
+        }
+
+        toast({
+          title: "Analysis Complete",
+          description: `Analyzed budget: ${budget.name}`,
+          variant: "default"
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing budget:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze the selected budget",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const initializeChatSession = async () => {
     try {
@@ -505,43 +612,63 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
             </Card>
           )}
 
-          {/* Budget Summary */}
-          {budgetData && (
-            <Card className="shadow-lg border-gray-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-gray-700">
-                  <BarChart3 className="h-5 w-5" />
-                  Current Budget
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Monthly Income:</span>
-                  <span className="font-semibold">
-                    {budgetData.income?.currency} {budgetData.income?.amount || 0}
-                  </span>
+          {/* Saved Budgets */}
+          <Card className="shadow-lg border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-gray-700">
+                <Folder className="h-5 w-5" />
+                Saved Budgets
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loadingBudgets ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>
+                  <p className="text-sm text-gray-500 mt-2">Loading budgets...</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total Expenses:</span>
-                  <span className="font-semibold">
-                    {budgetData.income?.currency} {
-                      budgetData.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0
-                    }
-                  </span>
+              ) : savedBudgets.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">No saved budgets found</p>
+                  <p className="text-xs text-gray-400 mt-1">Create a budget in the Budget Tracker to get started</p>
                 </div>
-                <Separator />
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">Remaining:</span>
-                  <span className="font-bold text-emerald-600">
-                    {budgetData.income?.currency} {
-                      (budgetData.income?.amount || 0) - 
-                      (budgetData.expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0)
-                    }
-                  </span>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {savedBudgets.map((budget) => (
+                    <Button
+                      key={budget.id}
+                      variant="outline"
+                      size="sm"
+                      className={`w-full text-left h-auto p-3 justify-start ${
+                        selectedBudget?.id === budget.id ? 'bg-blue-50 border-blue-200' : ''
+                      }`}
+                      onClick={() => analyzeBudget(budget)}
+                      disabled={loading}
+                    >
+                      <div className="flex flex-col items-start w-full">
+                        <span className="font-medium text-sm">{budget.name}</span>
+                        <div className="flex justify-between w-full mt-1">
+                          <span className="text-xs text-gray-500">
+                            {budget.income_currency} {budget.income_amount}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(budget.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+              {selectedBudget && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm font-medium text-blue-900">Analyzing: {selectedBudget.name}</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Income: {selectedBudget.income_currency} {selectedBudget.income_amount} ({selectedBudget.income_frequency})
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

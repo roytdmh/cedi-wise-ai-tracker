@@ -3,7 +3,6 @@ import { AlertCircle } from 'lucide-react';
 import { useFinancialAdvisor } from '@/hooks/useFinancialAdvisor';
 import HealthScoreCard from './financial-advisor/HealthScoreCard';
 import FinancialAdvisorChat from './financial-advisor/FinancialAdvisorChat';
-import ConnectionStatus from './financial-advisor/ConnectionStatus';
 import SavedBudgetsList from './financial-advisor/SavedBudgetsList';
 import RecommendationsList from './financial-advisor/RecommendationsList';
 import SuggestedQuestions from './financial-advisor/SuggestedQuestions';
@@ -56,14 +55,6 @@ const FinancialAdvisor = ({ budgetData }: FinancialAdvisorProps) => {
 
         {/* Sidebar with Tools and Information */}
         <div className="space-y-6">
-          {/* Connection Status */}
-          <ConnectionStatus 
-            connectionStatus={connectionStatus}
-            isTestingConnection={isTestingConnection}
-            retryCount={retryCount}
-            onTestConnection={testConnection}
-          />
-
           {/* Suggested Questions */}
           <SuggestedQuestions 
             onSelectQuestion={sendMessage}

@@ -13,6 +13,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let requestBody: any = {};
+  
   try {
     const groqApiKey = Deno.env.get('GROQ_API_KEY');
     if (!groqApiKey) {
@@ -25,12 +27,25 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const requestBody = await req.json();
-    console.log('Request body parsed successfully:', { 
-      hasMessage: !!requestBody.message, 
-      hasBudgetData: !!requestBody.budgetData, 
-      hasSessionId: !!requestBody.sessionId 
-    });
+    // Parse request body with error handling
+    try {
+      requestBody = await req.json();
+      console.log('Request body parsed successfully:', { 
+        hasMessage: !!requestBody.message, 
+        hasBudgetData: !!requestBody.budgetData, 
+        hasSessionId: !!requestBody.sessionId 
+      });
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid JSON in request body'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { message, budgetData, sessionId } = requestBody;
 
     // Handle connection test requests
@@ -79,6 +94,18 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+    }
+
+    // Validate required message parameter
+    if (!message || typeof message !== 'string') {
+      console.error('Invalid message parameter:', { message, type: typeof message });
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Message parameter is required and must be a string'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Get chat history if sessionId provided
@@ -228,41 +255,52 @@ Always provide specific, actionable advice with concrete examples and consider l
     // Provide fallback response based on error type
     let fallbackResponse = null;
     let errorType = 'unknown';
+    let chatHistory = []; // Ensure chatHistory is available for fallback
+
+    // Try to get the message and other variables safely
+    const safeMessage = requestBody?.message || 'Unknown message';
+    const safeBudgetData = requestBody?.budgetData || null;
+    const safeSessionId = requestBody?.sessionId || null;
     
     if (error.message.includes('insufficient_quota') || error.message.includes('quota')) {
       errorType = 'quota_exceeded';
-      fallbackResponse = generateFallbackAdvice(budgetData, 'quota');
+      fallbackResponse = generateFallbackAdvice(safeBudgetData, 'quota');
     } else if (error.message.includes('rate_limit')) {
       errorType = 'rate_limit';
-      fallbackResponse = generateFallbackAdvice(budgetData, 'rate_limit');
+      fallbackResponse = generateFallbackAdvice(safeBudgetData, 'rate_limit');
     } else if (error.message.includes('Groq')) {
       errorType = 'api_error';
-      fallbackResponse = generateFallbackAdvice(budgetData, 'api_error');
+      fallbackResponse = generateFallbackAdvice(safeBudgetData, 'api_error');
     }
     
     if (fallbackResponse) {
-      // Update chat session with fallback response
-      const newMessage = { role: 'user', content: message, timestamp: new Date().toISOString() };
-      const fallbackMessage = { role: 'assistant', content: fallbackResponse, timestamp: new Date().toISOString() };
-      const updatedHistory = [...chatHistory, newMessage, fallbackMessage];
+      // Try to update chat session with fallback response safely
+      try {
+        const newMessage = { role: 'user', content: safeMessage, timestamp: new Date().toISOString() };
+        const fallbackMessage = { role: 'assistant', content: fallbackResponse, timestamp: new Date().toISOString() };
+        const updatedHistory = [...chatHistory, newMessage, fallbackMessage];
 
-      if (sessionId) {
-        await supabase
-          .from('chat_sessions')
-          .update({ 
-            messages: updatedHistory,
-            context_data: { budgetData, healthScore, scoreFactors, error: errorType }
-          })
-          .eq('id', sessionId);
+        if (safeSessionId) {
+          await supabase
+            .from('chat_sessions')
+            .update({ 
+              messages: updatedHistory,
+              context_data: { budgetData: safeBudgetData, error: errorType }
+            })
+            .eq('id', safeSessionId);
+        }
+      } catch (sessionError) {
+        console.error('Error updating session in fallback:', sessionError);
+        // Continue with fallback response even if session update fails
       }
 
       return new Response(JSON.stringify({
         success: true,
         response: fallbackResponse,
-        healthScore,
-        scoreFactors,
-        recommendations,
-        sessionId,
+        healthScore: null,
+        scoreFactors: {},
+        recommendations: [],
+        sessionId: safeSessionId,
         fallback: true,
         errorType
       }), {

@@ -106,7 +106,8 @@ export default function Auth() {
 
       toast({
         title: "Account Created!",
-        description: "Please check your email to verify your account.",
+        description: "Please check your email (including spam folder) and click the confirmation link to activate your account, then return here to log in.",
+        duration: 8000,
       });
 
     } catch (error: any) {
@@ -143,6 +144,14 @@ export default function Auth() {
           toast({
             title: "Login Failed",
             description: "Invalid email or password. Please check your credentials and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (error.message.includes('Email not confirmed') || error.code === 'email_not_confirmed') {
+          toast({
+            title: "Email Confirmation Required",
+            description: "Please check your email and click the confirmation link before logging in. Check your spam folder if you don't see it.",
             variant: "destructive",
           });
           return;

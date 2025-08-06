@@ -1,27 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { NewsletterSignupDialog } from "@/components/NewsletterSignupDialog";
 import { BarChart3, BadgeCent, TrendingUp, Shield, Brain, Users } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAccess } from "@/contexts/AccessContext";
+import { Link } from "react-router-dom";
 
 export default function Landing() {
-  const navigate = useNavigate();
-  const { setAccessLevel } = useAccess();
-
-  const handleDemoAccess = () => {
-    setAccessLevel('demo');
-    navigate('/app?access=demo');
-  };
-
-  const handleFullAccess = (onSuccess?: () => void) => {
-    setAccessLevel('full');
-    if (onSuccess) {
-      onSuccess();
-    } else {
-      navigate('/app?access=full');
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted">
@@ -33,12 +15,12 @@ export default function Landing() {
             <span className="text-2xl font-bold">CediWise</span>
           </div>
           <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={handleDemoAccess}>
-              View Demo
+            <Button variant="outline" asChild>
+              <Link to="/auth">Login</Link>
             </Button>
-            <NewsletterSignupDialog onSuccess={() => handleFullAccess()}>
-              <Button>Try for Free</Button>
-            </NewsletterSignupDialog>
+            <Button asChild>
+              <Link to="/auth">Sign Up</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -52,13 +34,11 @@ export default function Landing() {
           Take control of your finances with CediWise - the AI-powered budget tracker that helps you make smarter financial decisions with real-time insights and personalized recommendations.
         </p>
         <div className="flex gap-4 justify-center">
-          <NewsletterSignupDialog onSuccess={() => handleFullAccess()}>
-            <Button size="lg" className="px-8">
-              Get Early Access
-            </Button>
-          </NewsletterSignupDialog>
-          <Button size="lg" variant="outline" className="px-8" onClick={handleDemoAccess}>
-            View Demo
+          <Button size="lg" className="px-8" asChild>
+            <Link to="/auth">Get Started</Link>
+          </Button>
+          <Button size="lg" variant="outline" className="px-8" asChild>
+            <Link to="/auth">Learn More</Link>
           </Button>
         </div>
       </section>
@@ -140,11 +120,9 @@ export default function Landing() {
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
             Join thousands of users who are already making smarter financial decisions with CediWise.
           </p>
-          <NewsletterSignupDialog onSuccess={() => handleFullAccess()}>
-            <Button size="lg" className="px-8">
-              Get Started for Free
-            </Button>
-          </NewsletterSignupDialog>
+          <Button size="lg" className="px-8" asChild>
+            <Link to="/auth">Get Started for Free</Link>
+          </Button>
         </div>
       </section>
 

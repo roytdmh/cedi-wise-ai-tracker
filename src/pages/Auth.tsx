@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Checkbox } from "@/components/ui/checkbox";
 import { BadgeCent, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,59 +122,6 @@ export default function Auth() {
     }
   };
 
-  const handleSignIn = async () => {
-    if (!email || !password) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter your email and password.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          toast({
-            title: "Login Failed",
-            description: "Invalid email or password. Please check your credentials and try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-        if (error.message.includes('Email not confirmed') || error.code === 'email_not_confirmed') {
-          toast({
-            title: "Email Confirmation Required",
-            description: "Please check your email and click the confirmation link before logging in. Check your spam folder if you don't see it.",
-            variant: "destructive",
-          });
-          return;
-        }
-        throw error;
-      }
-
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-
-    } catch (error: any) {
-      console.error('Sign in error:', error);
-      toast({
-        title: "Login Failed",
-        description: error.message || "An error occurred during login.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
@@ -202,108 +149,73 @@ export default function Auth() {
           </p>
         </div>
 
-        {/* Auth Forms */}
+        {/* Auth Form */}
         <Card>
-          <CardContent className="p-6">
-            <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
+          <CardHeader>
+            <CardTitle>Create Account</CardTitle>
+            <CardDescription>
+              Sign up to start managing your finances
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="signup-name">Full Name *</Label>
+              <Input
+                id="signup-name"
+                type="text"
+                placeholder="Enter your full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="signup-email">Email *</Label>
+              <Input
+                id="signup-email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="signup-password">Password *</Label>
+              <Input
+                id="signup-password"
+                type="password"
+                placeholder="Create a password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            
+            {/* Newsletter Opt-in */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="newsletter"
+                checked={newsletterOptIn}
+                onCheckedChange={(checked) => setNewsletterOptIn(checked as boolean)}
+                disabled={loading}
+              />
+              <Label htmlFor="newsletter" className="text-sm">
+                Subscribe to our newsletter for financial tips and updates
+              </Label>
+            </div>
 
-              <TabsContent value="login" className="space-y-4 mt-6">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                <Button 
-                  onClick={handleSignIn} 
-                  className="w-full" 
-                  disabled={loading}
-                >
-                  {loading ? "Signing in..." : "Sign In"}
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="signup" className="space-y-4 mt-6">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name *</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email *</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password *</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="Create a password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                
-                {/* Newsletter Opt-in */}
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="newsletter"
-                    checked={newsletterOptIn}
-                    onCheckedChange={(checked) => setNewsletterOptIn(checked as boolean)}
-                    disabled={loading}
-                  />
-                  <Label htmlFor="newsletter" className="text-sm">
-                    Subscribe to our newsletter for financial tips and updates
-                  </Label>
-                </div>
-
-                <Button 
-                  onClick={handleSignUp} 
-                  className="w-full" 
-                  disabled={loading}
-                >
-                  {loading ? "Creating account..." : "Create Account"}
-                </Button>
-                
-                <p className="text-xs text-muted-foreground text-center">
-                  By creating an account, you agree to our Terms of Service and Privacy Policy.
-                </p>
-              </TabsContent>
-            </Tabs>
+            <Button 
+              onClick={handleSignUp} 
+              className="w-full" 
+              disabled={loading}
+            >
+              {loading ? "Creating account..." : "Create Account"}
+            </Button>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              By creating an account, you agree to our Terms of Service and Privacy Policy.
+            </p>
           </CardContent>
         </Card>
       </div>
